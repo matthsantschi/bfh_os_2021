@@ -6,7 +6,7 @@ Emmanuel Benoist emmanuel.benoist@bfh.ch
 
 Lukas Ith lukas.ith@bfh.ch
 
-**Due date: Friday 26th of November 23:59:59
+**Due date: Friday 17th of December 23:59:59
   inside git repository.**
 
 ## Description
