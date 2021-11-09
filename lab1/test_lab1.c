@@ -70,8 +70,8 @@ main()
   assert(physical[7] == physical[2]);
   printf("Test if different addresses remain the same\n");
   assert(physical[4] != physical[5]);
-  res = get_physical_address(virtual[nb_cases], pid,&physical[nb_cases],&tlb_hit);
+  res = get_physical_address(virtual[nb_cases -1], pid,&physical[nb_cases-1],&tlb_hit);
   printf("Test if an error is returned for empty free frame list\n");
-  assert(1 == res);
+  assert(0 != res);
   return 0;
 }
