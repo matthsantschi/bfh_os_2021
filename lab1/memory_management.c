@@ -5,134 +5,172 @@
 #include "memory_management.h"
 
 //pointer to free_frame_list
-bool * free_frame_list_p;
-int * page_table_p;
-int * tlb_size_p;
-int * length_offset_in_bits_p;
-int * free_frames_number_p;
+bool *free_frame_list_p;
+int *page_table_p;
+int *tlb_size_p;
+static int length_offset_in_bits_c;
+static int free_frames_number_c;
+static int number_of_entrys_in_page_table_c;
+struct tlb *head;
 
 struct tlb
 {
-	int page_nr;
-	int * frame_address;
+	uint64_t page_nr;
+	uint64_t frame_address;
 	struct tlb *next;
 };
 
-struct tlb *head = NULL;
-struct tlb *current = NULL;
-
-uint64_t create_mask(uint64_t offset_length_p) {
-  uint64_t mask = 0;
-  for (size_t i = 0; i < offset_length_p; i++)
-  {
-    mask = mask + pow(2, i);
-  }
-  return mask;
+uint64_t create_mask(uint64_t offset_length_p)
+{
+	uint64_t mask = 0;
+	for (size_t i = 0; i < offset_length_p; i++)
+	{
+		mask = mask + pow(2, i);
+	}
+	return mask;
 }
 
-void insert_tlb(int page_nr, int * frame_address) {
-	struct tlb *link = (struct tlb*) malloc(sizeof(struct tlb));
-	link->page_nr = page_nr;
-	link->frame_address = frame_address;
+void insert_tlb(uint64_t *page_nr, uint64_t *frame_address)
+{
+	struct tlb *link = (struct tlb *)malloc(sizeof(struct tlb));
+	link->page_nr = * page_nr;
+	link->frame_address =  * frame_address;
 	link->next = head;
 	head = link;
 }
 
-uint64_t * seach_tlb(struct tlb* head, int page_nr) {
+uint64_t seach_tlb(struct tlb *head, uint64_t *page_nr)
+{
 	struct tlb *ptr = head;
-	if(ptr == NULL) {
-			return NULL;
-		}
-
-	for (size_t i = 0; i < * tlb_size_p; i++)
+	if (ptr == NULL)
 	{
-		if (ptr->page_nr == page_nr) {
+		return 0;
+	}
+
+	for (size_t i = 0; i < *tlb_size_p; i++)
+	{
+		if(ptr == NULL) {
+			return 0;
+		}
+		if (ptr->page_nr == *page_nr)
+		{
 			return ptr->frame_address;
 		}
-		
 		ptr = ptr->next;
 	}
 	// if not found return 0
-	return NULL;
+	return 0;
 }
 
-void print_tlb(){
+void print_tlb()
+{
 	struct tlb *ptr = head;
 	while (ptr != NULL)
 	{
-		printf("%i -> %i \n", ptr->page_nr, * ptr->frame_address);
+		printf("%lu -> %lu\n", ptr->page_nr, ptr->frame_address);
 		ptr = ptr->next;
 	}
-	
 }
 
 //todo implement some cleanup for the linked list
 
-
-
 int memory_init_data(int number_processes,
-		     int free_frames_number,
-		     int length_VPN_in_bits,
-		     int length_PFN_in_bits,
-		     int length_offset_in_bits,
-		     int tlb_size)                
+					 int free_frames_number,
+					 int length_VPN_in_bits,
+					 int length_PFN_in_bits,
+					 int length_offset_in_bits,
+					 int tlb_size)
 {
 	//set pointers;
-	*tlb_size_p = &tlb_size;
-	*length_offset_in_bits_p = &length_offset_in_bits;
-	*free_frames_number_p = &free_frames_number;
-	// create free frame list
-	*free_frame_list_p = (bool *) malloc(sizeof(bool) * free_frames_number);
+	tlb_size_p = malloc(sizeof(int *));
+	tlb_size_p = &tlb_size;
+	length_offset_in_bits_c = length_offset_in_bits;
+	free_frames_number_c = free_frames_number + 1;
+	head = NULL;
+	free_frame_list_p = (bool *)malloc(sizeof(bool *) * free_frames_number + 1);
 	// set all entries == true
-	for (size_t i = 0; i < free_frames_number; i++)
+	free_frame_list_p[0] = false; // we use 0 as error code so we cant use add 0
+	for (size_t i = 1; i < free_frames_number + 1; i++)
 	{
 		free_frame_list_p[i] = true;
 	}
 
 	// create page table
 	// allocate array to store vpn-number -> frame-number
-	int number_of_entries_in_page_table = (pow(2, length_VPN_in_bits) -1);
-	page_table_p = (int *) malloc(sizeof(int *) * number_of_entries_in_page_table);
-return 0;
+	number_of_entrys_in_page_table_c = (pow(2, length_VPN_in_bits) - 1);
+	printf("number of enties in page table %i\n", number_of_entrys_in_page_table_c);
+	page_table_p = (int *)malloc(sizeof(int *) * number_of_entrys_in_page_table_c);
+	for (size_t i = 0; i < number_of_entrys_in_page_table_c; i++)
+	{
+		page_table_p[i] = 0;
+	}
+	
+	return 0;
 }
 
+void combine_page_and_offset(uint64_t * physical_address_p, uint64_t *page_number_p, uint64_t *offset_p)
+{
+	uint64_t page_number = *page_number_p;
+	uint64_t offset = *offset_p;
+	uint64_t physical_address = (page_number << length_offset_in_bits_c);
+	physical_address = (physical_address | offset);
+	printf("Combine %lx and %lx result in %lx \n", page_number, offset, physical_address);
+	*physical_address_p = physical_address;
+}
 
 int get_physical_address(uint64_t virtual_address,
-			 int process_id,
-			 uint64_t* physical_address,
-			 int* tlb_hit)
+						 int process_id,
+						 uint64_t *physical_address,
+						 int *tlb_hit)
 {
-	uint64_t page_number = (virtual_address >> * length_offset_in_bits_p);
-	uint64_t offset = (virtual_address & create_mask(*length_offset_in_bits_p));
-	uint64_t * physical_frame_p = seach_tlb(head, page_number);
+	uint64_t page_number = (virtual_address >> length_offset_in_bits_c);
+	if(page_number > number_of_entrys_in_page_table_c) {
+		// page_number is out of bound
+		return 1;
+	}
+	uint64_t offset = (virtual_address & create_mask(length_offset_in_bits_c));
+	printf("Page Number %lx, offet: %lx\n", page_number, offset);
+	uint64_t physical_frame = 0;
+		physical_frame = seach_tlb(head, &page_number);
 	// if we fount the frame in tlb return it -> node;
-	if(* physical_frame_p != NULL ){
-		return * physical_frame_p;
-	}
-	physical_frame_p = &page_table_p[page_number];
-	if(* physical_frame_p != NULL) {
-		return * physical_frame_p;
-	}
-	// we did not find this page_number so we have to load it in memory
-	* physical_frame_p = 0;
-	while (free_frame_list_p[*physical_frame_p] == false && *physical_frame_p <= free_frames_number_p )
+	if (physical_frame != 0)
 	{
-		*physical_frame_p ++;
+		*tlb_hit = 1;
+		combine_page_and_offset(physical_address, &physical_frame, &offset);
+		return 0;
 	}
-	if(*physical_frame_p > free_frames_number_p) {
-		// we dont have memory left, return NULL
-		return NULL;
+	physical_frame = page_table_p[page_number];
+	if (physical_frame != 0)
+	{ 
+		*tlb_hit = 0;
+		combine_page_and_offset(physical_address, &physical_frame, &offset);
+		insert_tlb(& page_number, & physical_frame);
+		return 0;
 	}
-	// if we are not out of memory physical_frame_p holds the frame number we can use
-	free_frame_list_p[*physical_frame_p] = false;
+
+	// we did not find this page_number so we have to load it in memory
+	physical_frame = 0;
+	while (free_frame_list_p[physical_frame] == false && physical_frame <= free_frames_number_c)
+	{
+		physical_frame++;
+	}
+	if (physical_frame > free_frames_number_c)
+	{
+		// we dont have memory left, return 1
+		return 1;
+	}
+
+	// if we are not out of memory physical_frame holds the frame number we can use
+	free_frame_list_p[physical_frame] = false;
 	// update page_table
-	page_table_p[page_number] = physical_frame_p;
+	page_table_p[page_number] = physical_frame;
+	uint64_t *page_number_p = &page_number;
+	uint64_t *physical_frame_p = &physical_frame;
 	// update tlb
-	insert_tlb(page_number, physical_frame_p); 
-	
-	physical_address = (*physical_frame_p << * length_offset_in_bits_p);
-	uint64_t helper = (*physical_address | offset);
+	printf("pagenr: %lx, physical_f: %lx\n", page_number, physical_frame);
+	insert_tlb(page_number_p, physical_frame_p);
+	*tlb_hit = 0;
+	combine_page_and_offset(physical_address, &physical_frame, &offset);
 
-  return helper;
+	return 0;
 }
-
