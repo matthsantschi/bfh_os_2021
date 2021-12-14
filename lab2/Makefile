@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS= -g
 EXEC=test_lab2
-LDFLAGS= -lpthread
+LDFLAGS= -lpthread -lm
 
 all: $(EXEC)
 
