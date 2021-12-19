@@ -92,6 +92,19 @@ uint64_t seach_tlb(int process_id, uint64_t *page_nr)
   return 0;
 }
 
+uint64_t load_into_memory() {
+  int physical_frame = 0;
+  while (free_frame_list_p[physical_frame] == false && physical_frame <= free_frames_number_c)
+  {
+    physical_frame++;
+  }
+  if (physical_frame <= free_frames_number_c)
+  {
+    free_frame_list_p[physical_frame] = false;
+    return physical_frame;
+  }
+  return -1;
+}
 // todo implement some cleanup for the linked list
 
 int memory_init_data(int number_processes,
@@ -172,14 +185,8 @@ int get_physical_address(uint64_t virtual_address,
   }
 
   // we did not find this page_number so we have to load it in memory
-  physical_frame = 0;
-  while (free_frame_list_p[physical_frame] == false && physical_frame <= free_frames_number_c)
-  {
-    physical_frame++;
-  }
-  if (physical_frame > free_frames_number_c)
-  {
-    // we dont have memory left, return 1
+  physical_frame = load_into_memory();
+    if (physical_frame == -1 ){
     return 1;
   }
 
