@@ -4,14 +4,14 @@
 #include <math.h>
 #include "memory_management.h"
 
-//pointer to free_frame_list
+// pointer to free_frame_list
 static bool *free_frame_list_p;
 static int *page_table_p;
 static int tlb_size_c;
 static int length_offset_in_bits_c;
 static int free_frames_number_c;
 static int number_of_entryes_in_page_table_c;
-struct tlb *head;
+static struct tlb **head;
 
 struct tlb
 {
@@ -30,18 +30,47 @@ uint64_t create_mask(uint64_t offset_length_p)
   return mask;
 }
 
-void insert_tlb(uint64_t *page_nr, uint64_t *frame_address)
+void print_tlb(int process_id)
 {
-  struct tlb *link = (struct tlb *)malloc(sizeof(struct tlb));
+  printf("*** PRINT TLB **** \n");
+  struct tlb *pointer = head[process_id];
+  if(pointer == NULL) {
+    return;
+  }
+  while (pointer != NULL)
+  {
+    printf("Loop-tlb: page: %llx, frame %llx \n", pointer->page_nr, pointer->frame_address);
+    pointer = pointer->next;
+  }
+}
+/**
+ * @brief allocates memory for a new struct tlb and ads it on head[process_id]
+ * 
+ * @param process_id 
+ * @param page_nr 
+ * @param frame_address 
+ * @return ** void 
+ */
+void insert_tlb(int process_id, uint64_t *page_nr, uint64_t *frame_address)
+{
+  // printf("---INSERT INTO TLB process_id: %i, %llx, %llx \n", process_id, *page_nr, *frame_address);
+  struct tlb *link = calloc(1, sizeof(struct tlb));
   link->page_nr = *page_nr;
   link->frame_address = *frame_address;
-  link->next = head;
-  head = link;
+  link->next = head[process_id];
+  head[process_id] = link;
 }
-
-uint64_t seach_tlb(struct tlb *head, uint64_t *page_nr)
+/**
+ * @brief searching the linked list but only in the given amount tlb_size_c
+ * 
+ * 
+ * @param process_id 
+ * @param page_nr 
+ * @return uint64_t return 0 if search was unsuccessfull
+ */
+uint64_t seach_tlb(int process_id, uint64_t *page_nr)
 {
-  struct tlb *ptr = head;
+  struct tlb *ptr = head[process_id];
   if (ptr == NULL)
   {
     return 0;
@@ -63,7 +92,7 @@ uint64_t seach_tlb(struct tlb *head, uint64_t *page_nr)
   return 0;
 }
 
-//todo implement some cleanup for the linked list
+// todo implement some cleanup for the linked list
 
 int memory_init_data(int number_processes,
                      int free_frames_number,
@@ -72,11 +101,13 @@ int memory_init_data(int number_processes,
                      int length_offset_in_bits,
                      int tlb_size)
 {
-  //set pointers;
+  // set pointers;
   tlb_size_c = tlb_size;
   length_offset_in_bits_c = length_offset_in_bits;
   free_frames_number_c = free_frames_number + 1;
-  head = NULL;
+  // initialize pointers for each process head[process_id] -> first note of linked list
+  head = calloc(number_processes, sizeof(struct tlb *));
+
   free_frame_list_p = (bool *)malloc(sizeof(bool *) * free_frames_number + 1);
   // set all entries == true
   free_frame_list_p[0] = false; // we use 0 as error code so we cant use add 0
@@ -111,15 +142,17 @@ int get_physical_address(uint64_t virtual_address,
                          uint64_t *physical_address,
                          int *tlb_hit)
 {
+
   uint64_t page_number = (virtual_address >> length_offset_in_bits_c);
   if (page_number > number_of_entryes_in_page_table_c)
   {
     // page_number is out of bound
     return 1;
   }
+  print_tlb(process_id);
   uint64_t offset = (virtual_address & create_mask(length_offset_in_bits_c));
   uint64_t physical_frame = 0;
-  physical_frame = seach_tlb(head, &page_number);
+  physical_frame = seach_tlb(process_id, &page_number);
   // if we fount the frame in tlb return it -> node;
   if (physical_frame != 0)
   {
@@ -132,7 +165,7 @@ int get_physical_address(uint64_t virtual_address,
   {
     *tlb_hit = 0;
     combine_page_and_offset(physical_address, &physical_frame, &offset);
-    insert_tlb(&page_number, &physical_frame);
+    insert_tlb(process_id, &page_number, &physical_frame);
     return 0;
   }
 
@@ -155,7 +188,7 @@ int get_physical_address(uint64_t virtual_address,
   uint64_t *page_number_p = &page_number;
   uint64_t *physical_frame_p = &physical_frame;
   // update tlb
-  insert_tlb(page_number_p, physical_frame_p);
+  insert_tlb(process_id, page_number_p, physical_frame_p);
   *tlb_hit = 0;
   combine_page_and_offset(physical_address, &physical_frame, &offset);
 
