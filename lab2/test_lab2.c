@@ -81,7 +81,6 @@ main()
   printf("First we test if the program still works with one single process\n");
 
   make_tests(0);
-  
   int nb=NUMBER_PROCESSES;
   printf("Starts %d independent threads\n",nb);
   pthread_t arr_threads[NUMBER_PROCESSES];
@@ -100,6 +99,7 @@ main()
     }
 
 
+  free_memory(NUMBER_PROCESSES);
   
   return 0;
 }

@@ -36,7 +36,8 @@ void print_tlb(int process_id)
 {
   printf("*** PRINT TLB **** \n");
   struct tlb *pointer = head[process_id];
-  if(pointer == NULL) {
+  if (pointer == NULL)
+  {
     return;
   }
   while (pointer != NULL)
@@ -94,7 +95,8 @@ uint64_t seach_tlb(int process_id, uint64_t *page_nr)
   return 0;
 }
 
-uint64_t load_into_memory() {
+uint64_t load_into_memory()
+{
   int physical_frame = 0;
   while (free_frame_list_p[physical_frame] == false && physical_frame <= free_frames_number_c)
   {
@@ -123,7 +125,7 @@ int memory_init_data(int number_processes,
   // initialize pointers for each process head[process_id] -> first note of linked list
   head = calloc(number_processes, sizeof(struct tlb *));
 
-  free_frame_list_p = (bool *)malloc(sizeof(bool *) * free_frames_number + 1);
+  free_frame_list_p = (bool *)calloc(free_frames_number_c + 1, sizeof(bool *));
   // set all entries == true
   free_frame_list_p[0] = false; // we use 0 as error code so we cant use add 0
   for (size_t i = 1; i < free_frames_number + 1; i++)
@@ -134,17 +136,17 @@ int memory_init_data(int number_processes,
   // create page table for each process
   // allocate array to store vpn-number -> frame-number
   number_of_entryes_in_page_table_c = (pow(2, length_VPN_in_bits) - 1);
-  page_table_p = calloc(number_processes, sizeof(int*));
+  page_table_p = calloc(number_processes, sizeof(int *));
   for (size_t i = 0; i < number_processes; i++)
   {
-    page_table_p[i] = (int *)malloc(sizeof(int *) * number_of_entryes_in_page_table_c);
+    page_table_p[i] = calloc(number_of_entryes_in_page_table_c, sizeof(int));
   }
   // initialize mutex
-  if(pthread_mutex_init(&mutex,NULL) != 0 ){
+  if (pthread_mutex_init(&mutex, NULL) != 0)
+  {
     // returns 0 if successfully created mutex
     return 1;
   };
-
 
   return 0;
 }
@@ -195,19 +197,42 @@ int get_physical_address(uint64_t virtual_address,
   pthread_mutex_lock(&mutex);
   physical_frame = load_into_memory();
   pthread_mutex_unlock(&mutex);
-  if (physical_frame == -1 ){
+  if (physical_frame == -1)
+  {
     return 1;
   }
   // update page_table
   page_table_p[process_id][page_number] = physical_frame;
-  uint64_t *page_number_p = &page_number;
-  uint64_t *physical_frame_p = &physical_frame;
   // update tlb
-  insert_tlb(process_id, page_number_p, physical_frame_p);
+  insert_tlb(process_id, &page_number, &physical_frame);
   *tlb_hit = 0;
   combine_page_and_offset(physical_address, &physical_frame, &offset);
-
   return 0;
-}
+};
 
+void free_memory(int number_of_processes)
+{
+  free(free_frame_list_p);
+  for (size_t i = 0; i < number_of_processes; i++)
+  {
+    if (head[i] == NULL)
+    {
+      continue;
+    }
+    struct tlb *current = head[i];
+    while (current->next != NULL)
+    {
+      struct tlb *temp = current;
+      current = current->next;
+      free(temp);
+    }
+    free(current);
+  }
+  for (size_t i = 0; i < number_of_processes; i++)
+  {
+    free(page_table_p[i]);
+  }
 
+  free(page_table_p);
+  free(head);
+};
