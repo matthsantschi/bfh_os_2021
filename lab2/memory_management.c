@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <math.h>
 #include "memory_management.h"
 
@@ -12,6 +13,7 @@ static int length_offset_in_bits_c;
 static int free_frames_number_c;
 static int number_of_entryes_in_page_table_c;
 static struct tlb **head;
+pthread_mutex_t mutex;
 
 struct tlb
 {
@@ -137,8 +139,12 @@ int memory_init_data(int number_processes,
   {
     page_table_p[i] = (int *)malloc(sizeof(int *) * number_of_entryes_in_page_table_c);
   }
-  
-  
+  // initialize mutex
+  if(pthread_mutex_init(&mutex,NULL) != 0 ){
+    // returns 0 if successfully created mutex
+    return 1;
+  };
+
 
   return 0;
 }
@@ -168,6 +174,7 @@ int get_physical_address(uint64_t virtual_address,
   uint64_t offset = (virtual_address & create_mask(length_offset_in_bits_c));
   uint64_t physical_frame = 0;
   physical_frame = seach_tlb(process_id, &page_number);
+
   // if we fount the frame in tlb return it -> node;
   if (physical_frame != 0)
   {
@@ -185,13 +192,12 @@ int get_physical_address(uint64_t virtual_address,
   }
 
   // we did not find this page_number so we have to load it in memory
+  pthread_mutex_lock(&mutex);
   physical_frame = load_into_memory();
-    if (physical_frame == -1 ){
+  pthread_mutex_unlock(&mutex);
+  if (physical_frame == -1 ){
     return 1;
   }
-
-  // if we are not out of memory physical_frame holds the frame number we can use
-  free_frame_list_p[physical_frame] = false;
   // update page_table
   page_table_p[process_id][page_number] = physical_frame;
   uint64_t *page_number_p = &page_number;
@@ -203,3 +209,5 @@ int get_physical_address(uint64_t virtual_address,
 
   return 0;
 }
+
+
