@@ -6,7 +6,7 @@
 
 // pointer to free_frame_list
 static bool *free_frame_list_p;
-static int *page_table_p;
+static int **page_table_p;
 static int tlb_size_c;
 static int length_offset_in_bits_c;
 static int free_frames_number_c;
@@ -116,14 +116,16 @@ int memory_init_data(int number_processes,
     free_frame_list_p[i] = true;
   }
 
-  // create page table
+  // create page table for each process
   // allocate array to store vpn-number -> frame-number
   number_of_entryes_in_page_table_c = (pow(2, length_VPN_in_bits) - 1);
-  page_table_p = (int *)malloc(sizeof(int *) * number_of_entryes_in_page_table_c);
-  for (size_t i = 0; i < number_of_entryes_in_page_table_c; i++)
+  page_table_p = calloc(number_processes, sizeof(int*));
+  for (size_t i = 0; i < number_processes; i++)
   {
-    page_table_p[i] = 0;
+    page_table_p[i] = (int *)malloc(sizeof(int *) * number_of_entryes_in_page_table_c);
   }
+  
+  
 
   return 0;
 }
@@ -160,7 +162,7 @@ int get_physical_address(uint64_t virtual_address,
     combine_page_and_offset(physical_address, &physical_frame, &offset);
     return 0;
   }
-  physical_frame = page_table_p[page_number];
+  physical_frame = page_table_p[process_id][page_number];
   if (physical_frame != 0)
   {
     *tlb_hit = 0;
@@ -184,7 +186,7 @@ int get_physical_address(uint64_t virtual_address,
   // if we are not out of memory physical_frame holds the frame number we can use
   free_frame_list_p[physical_frame] = false;
   // update page_table
-  page_table_p[page_number] = physical_frame;
+  page_table_p[process_id][page_number] = physical_frame;
   uint64_t *page_number_p = &page_number;
   uint64_t *physical_frame_p = &physical_frame;
   // update tlb
