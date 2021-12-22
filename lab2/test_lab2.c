@@ -85,7 +85,7 @@ main()
   printf("Starts %d independent threads\n",nb);
   pthread_t arr_threads[NUMBER_PROCESSES];
 
-  for(int i =0;i < NUMBER_PROCESSES;i++)
+  for(int i = NUMBER_PROCESSES -1;i >= 0;i--)
     {
       int* args = (int*) malloc(sizeof(int*));
       args[0]=i;
