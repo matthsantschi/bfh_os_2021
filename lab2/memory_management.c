@@ -13,6 +13,7 @@ static int length_offset_in_bits_c;
 static int free_frames_number_c;
 static int number_of_entryes_in_page_table_c;
 static struct tlb *head;
+static int nbr_of_processes_c;
 pthread_mutex_t mutex;
 pthread_mutex_t mutex_tlb;
 
@@ -128,9 +129,10 @@ int memory_init_data(int number_processes,
                      int tlb_size)
 {
   // set pointers;
-  tlb_size_c = tlb_size;
+  tlb_size_c = tlb_size-1;
   length_offset_in_bits_c = length_offset_in_bits;
   free_frames_number_c = free_frames_number + 1;
+  nbr_of_processes_c = number_processes;
   // initialize pointers for each process head[process_id] -> first note of linked list
   head = NULL;
 
@@ -228,7 +230,7 @@ int get_physical_address(uint64_t virtual_address,
   return 0;
 };
 
-void free_memory(int number_of_processes)
+int free_memory()
 {
   free(free_frame_list_p);
 
@@ -238,12 +240,12 @@ void free_memory(int number_of_processes)
     head = temp->next;
     free(temp);
   }
-  free(head);
-  for (size_t i = 0; i < number_of_processes; i++)
+  for (size_t i = 0; i < nbr_of_processes_c; i++)
   {
     free(page_table_p[i]);
   }
 
   free(page_table_p);
   free(head);
+  return 0;
 };

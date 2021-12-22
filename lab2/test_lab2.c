@@ -99,7 +99,9 @@ main()
     }
 
 
-  free_memory(NUMBER_PROCESSES);
+  if (free_memory() != 0) {
+    return 1;
+  };
   
   return 0;
 }

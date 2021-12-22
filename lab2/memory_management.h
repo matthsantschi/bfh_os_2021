@@ -12,4 +12,4 @@ int get_physical_address(uint64_t virtual_address,
 			 uint64_t* physical_address,
 			 int* tlb_hit);
 
-void free_memory(int number_processes);
+int free_memory();
