@@ -14,6 +14,7 @@ static int free_frames_number_c;
 static int number_of_entryes_in_page_table_c;
 static struct tlb *head;
 pthread_mutex_t mutex;
+pthread_mutex_t mutex_tlb;
 
 struct tlb
 {
@@ -33,7 +34,7 @@ uint64_t create_mask(uint64_t offset_length_p)
   return mask;
 }
 
-void print_tlb(int process_id)
+void print_tlb()
 {
   printf("*** PRINT TLB **** \n");
   struct tlb *pointer = head;
@@ -81,7 +82,7 @@ uint64_t seach_tlb(int process_id, uint64_t *page_nr)
     return 0;
   }
 
-  for (size_t i = 0; i < tlb_size_c; i++)
+  for (size_t i = 0; i <= tlb_size_c; i++)
   {
     if (ptr == NULL)
     {
@@ -90,6 +91,12 @@ uint64_t seach_tlb(int process_id, uint64_t *page_nr)
     if (ptr->page_nr == *page_nr && ptr->process_id == process_id)
     {
       return ptr->frame_address;
+    }
+    // if we reach the max size, free ptr->next
+    if( i == tlb_size_c ){
+      free(ptr->next);
+      ptr->next = NULL;
+      return 0;
     }
     ptr = ptr->next;
   }
@@ -144,7 +151,7 @@ int memory_init_data(int number_processes,
     page_table_p[i] = calloc(number_of_entryes_in_page_table_c, sizeof(int));
   }
   // initialize mutex
-  if (pthread_mutex_init(&mutex, NULL) != 0)
+  if (pthread_mutex_init(&mutex, NULL) != 0 || pthread_mutex_init(&mutex_tlb, NULL) != 0)
   {
     // returns 0 if successfully created mutex
     return 1;
@@ -174,10 +181,14 @@ int get_physical_address(uint64_t virtual_address,
     // page_number is out of bound
     return 1;
   }
-  print_tlb(process_id);
+  pthread_mutex_lock(&mutex_tlb);
+  print_tlb();
+  pthread_mutex_unlock(&mutex_tlb);
   uint64_t offset = (virtual_address & create_mask(length_offset_in_bits_c));
   uint64_t physical_frame = 0;
+  pthread_mutex_lock(&mutex_tlb);
   physical_frame = seach_tlb(process_id, &page_number);
+  pthread_mutex_unlock(&mutex_tlb);
 
   // if we fount the frame in tlb return it -> node;
   if (physical_frame != 0)
@@ -191,7 +202,9 @@ int get_physical_address(uint64_t virtual_address,
   {
     *tlb_hit = 0;
     combine_page_and_offset(physical_address, &physical_frame, &offset);
+    pthread_mutex_lock(&mutex_tlb);
     insert_tlb(process_id, &page_number, &physical_frame);
+    pthread_mutex_unlock(&mutex_tlb);
     return 0;
   }
 
@@ -206,7 +219,10 @@ int get_physical_address(uint64_t virtual_address,
   // update page_table
   page_table_p[process_id][page_number] = physical_frame;
   // update tlb
+  pthread_mutex_lock(&mutex_tlb);
   insert_tlb(process_id, &page_number, &physical_frame);
+  pthread_mutex_unlock(&mutex_tlb);
+
   *tlb_hit = 0;
   combine_page_and_offset(physical_address, &physical_frame, &offset);
   return 0;
