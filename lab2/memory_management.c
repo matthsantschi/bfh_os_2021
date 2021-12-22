@@ -12,13 +12,14 @@ static int tlb_size_c;
 static int length_offset_in_bits_c;
 static int free_frames_number_c;
 static int number_of_entryes_in_page_table_c;
-static struct tlb **head;
+static struct tlb *head;
 pthread_mutex_t mutex;
 
 struct tlb
 {
   uint64_t page_nr;
   uint64_t frame_address;
+  uint64_t process_id;
   struct tlb *next;
 };
 
@@ -35,14 +36,14 @@ uint64_t create_mask(uint64_t offset_length_p)
 void print_tlb(int process_id)
 {
   printf("*** PRINT TLB **** \n");
-  struct tlb *pointer = head[process_id];
+  struct tlb *pointer = head;
   if (pointer == NULL)
   {
     return;
   }
   while (pointer != NULL)
   {
-    printf("Loop-tlb: page: %llx, frame %llx \n", pointer->page_nr, pointer->frame_address);
+    printf("Loop-tlb: page: %llx, frame %llx, process_id: %llx \n", pointer->page_nr, pointer->frame_address, pointer->process_id);
     pointer = pointer->next;
   }
 }
@@ -60,8 +61,9 @@ void insert_tlb(int process_id, uint64_t *page_nr, uint64_t *frame_address)
   struct tlb *link = calloc(1, sizeof(struct tlb));
   link->page_nr = *page_nr;
   link->frame_address = *frame_address;
-  link->next = head[process_id];
-  head[process_id] = link;
+  link->process_id = process_id;
+  link->next = head;
+  head = link;
 }
 /**
  * @brief searching the linked list but only in the given amount tlb_size_c
@@ -73,7 +75,7 @@ void insert_tlb(int process_id, uint64_t *page_nr, uint64_t *frame_address)
  */
 uint64_t seach_tlb(int process_id, uint64_t *page_nr)
 {
-  struct tlb *ptr = head[process_id];
+  struct tlb *ptr = head;
   if (ptr == NULL)
   {
     return 0;
@@ -85,7 +87,7 @@ uint64_t seach_tlb(int process_id, uint64_t *page_nr)
     {
       return 0;
     }
-    if (ptr->page_nr == *page_nr)
+    if (ptr->page_nr == *page_nr && ptr->process_id == process_id)
     {
       return ptr->frame_address;
     }
@@ -123,7 +125,7 @@ int memory_init_data(int number_processes,
   length_offset_in_bits_c = length_offset_in_bits;
   free_frames_number_c = free_frames_number + 1;
   // initialize pointers for each process head[process_id] -> first note of linked list
-  head = calloc(number_processes, sizeof(struct tlb *));
+  head = NULL;
 
   free_frame_list_p = (bool *)calloc(free_frames_number_c + 1, sizeof(bool *));
   // set all entries == true
@@ -213,21 +215,14 @@ int get_physical_address(uint64_t virtual_address,
 void free_memory(int number_of_processes)
 {
   free(free_frame_list_p);
-  for (size_t i = 0; i < number_of_processes; i++)
+
+  while (head->next != NULL)
   {
-    if (head[i] == NULL)
-    {
-      continue;
-    }
-    struct tlb *current = head[i];
-    while (current->next != NULL)
-    {
-      struct tlb *temp = current;
-      current = current->next;
-      free(temp);
-    }
-    free(current);
+    struct tlb *temp = head;
+    head = temp->next;
+    free(temp);
   }
+  free(head);
   for (size_t i = 0; i < number_of_processes; i++)
   {
     free(page_table_p[i]);
