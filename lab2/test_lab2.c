@@ -60,6 +60,7 @@ run_test(void * in)
   printf("pid = %d\n",pid);
 
   make_tests(pid);
+  free(in);
 
 }
 
