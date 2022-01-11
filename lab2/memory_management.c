@@ -244,7 +244,8 @@ int free_memory()
   {
     free(page_table_p[i]);
   }
-
+  pthread_mutex_destroy(&mutex);
+  pthread_mutex_destroy(&mutex_tlb);
   free(page_table_p);
   free(head);
   return 0;
